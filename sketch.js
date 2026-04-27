@@ -1,12 +1,11 @@
 // ─── Config ───────────────────────────────────────────────────────────────────
-const WEBCAM_RATIO      = 0.22;  // webcam preview = 22% of screen width
-const NOISE_AMOUNT      = 18;    // film grain intensity (0 = off, higher = stronger)
+const WEBCAM_SCALE      = 0.6;   // processing resolution as fraction of screen (CSS stretches to fullscreen)
 const PLAYBACK_RATE     = 1.0;   // video speed (0.5 = half, 2.0 = double)
-const VIGNETTE_STRENGTH = 0.6;  // vignette applied before invert (0 = off, higher = stronger)
+const VIGNETTE_STRENGTH = 0.6; // vignette edge darkening (0 = off, higher = stronger)
 
 // ─── Dynamic webcam dimensions ────────────────────────────────────────────────
-let WEBCAM_W = Math.round(window.innerWidth * WEBCAM_RATIO);
-let WEBCAM_H = Math.round(WEBCAM_W * (3 / 4));
+let WEBCAM_W = Math.round(window.innerWidth  * WEBCAM_SCALE);
+let WEBCAM_H = Math.round(window.innerHeight * WEBCAM_SCALE);
 
 // ─── State ────────────────────────────────────────────────────────────────────
 let capture;
@@ -79,8 +78,8 @@ new p5(function (p) {
   };
 
   p.windowResized = function () {
-    WEBCAM_W = Math.round(window.innerWidth * WEBCAM_RATIO);
-    WEBCAM_H = Math.round(WEBCAM_W * (3 / 4));
+    WEBCAM_W = Math.round(window.innerWidth  * WEBCAM_SCALE);
+    WEBCAM_H = Math.round(window.innerHeight * WEBCAM_SCALE);
     applyCanvasSize();
     if (capture) capture.size(WEBCAM_W, WEBCAM_H);
   };
@@ -146,14 +145,24 @@ function tryAdvanceMask() {
   }
 }
 
-// ─── Webcam preview draw — invert + noise ────────────────────────────────────
+// ─── Webcam preview draw — grayscale invert + vignette ───────────────────────
 function drawWebcamPreview() {
   if (!capture || !capture.elt) return;
 
-  // Draw mirrored frame to offscreen
+  // Draw mirrored frame to offscreen — cover crop to preserve aspect ratio
+  const srcW = capture.elt.videoWidth  || WEBCAM_W;
+  const srcH = capture.elt.videoHeight || WEBCAM_H;
+  const srcAspect = srcW / srcH;
+  const dstAspect = WEBCAM_W / WEBCAM_H;
+  let sx, sy, sw, sh;
+  if (srcAspect > dstAspect) {
+    sh = srcH; sw = srcH * dstAspect; sx = (srcW - sw) / 2; sy = 0;
+  } else {
+    sw = srcW; sh = srcW / dstAspect; sx = 0; sy = (srcH - sh) / 2;
+  }
   offCtx.save();
   offCtx.scale(-1, 1);
-  offCtx.drawImage(capture.elt, -WEBCAM_W, 0, WEBCAM_W, WEBCAM_H);
+  offCtx.drawImage(capture.elt, sx, sy, sw, sh, -WEBCAM_W, 0, WEBCAM_W, WEBCAM_H);
   offCtx.restore();
 
   const id = offCtx.getImageData(0, 0, WEBCAM_W, WEBCAM_H);
@@ -162,26 +171,15 @@ function drawWebcamPreview() {
   const cy = WEBCAM_H / 2;
 
   for (let i = 0; i < px.length; i += 4) {
-    // Grayscale
     const g = (px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114) | 0;
 
-    // Vignette — darken edges before invert
     const idx = i >> 2;
     const dx = ((idx % WEBCAM_W) - cx) / cx;
     const dy = ((idx / WEBCAM_W | 0) - cy) / cy;
     const vignette = Math.max(0, 1 - (dx * dx + dy * dy) * VIGNETTE_STRENGTH);
     const gv = (g * vignette) | 0;
 
-    // Invert
-    px[i]     = 255 - gv;
-    px[i + 1] = 255 - gv;
-    px[i + 2] = 255 - gv;
-
-    // Noise
-    const n = (Math.random() - 0.5) * NOISE_AMOUNT;
-    px[i]     = Math.max(0, Math.min(255, px[i]     + n)) | 0;
-    px[i + 1] = Math.max(0, Math.min(255, px[i + 1] + n)) | 0;
-    px[i + 2] = Math.max(0, Math.min(255, px[i + 2] + n)) | 0;
+    px[i] = px[i + 1] = px[i + 2] = gv;
   }
 
   webcamCtx.putImageData(id, 0, 0);
