@@ -12,9 +12,9 @@ let capture;
 let bodyPose;
 let poses = [];
 
-let currentMaskIndex = 0;
-let maskIsPlaying    = false;
-let personWasAbsent  = false;   // true after person leaves; next appearance triggers next video
+let currentMaskIndex  = 0;
+let maskIsPlaying     = false;
+let prevObserverCount = -1;    // triggers next video when observer count changes
 
 const maskVideos = [
   document.getElementById('mask1'),
@@ -22,18 +22,22 @@ const maskVideos = [
   document.getElementById('mask3'),
 ];
 
-const webcamContainer = document.getElementById('webcam-container');
-const webcamCanvas    = document.getElementById('webcam-canvas');
-const webcamCtx       = webcamCanvas.getContext('2d');
+const webcamContainer    = document.getElementById('webcam-container');
+const webcamCanvas       = document.getElementById('webcam-canvas');
+const webcamCtx          = webcamCanvas.getContext('2d');
+const detectionCanvas    = document.getElementById('detection-overlay');
+const detectionCtx       = detectionCanvas.getContext('2d');
 
 const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
 
 function applyCanvasSize() {
-  webcamCanvas.width  = WEBCAM_W;
-  webcamCanvas.height = WEBCAM_H;
-  offscreen.width     = WEBCAM_W;
-  offscreen.height    = WEBCAM_H;
+  webcamCanvas.width      = WEBCAM_W;
+  webcamCanvas.height     = WEBCAM_H;
+  offscreen.width         = WEBCAM_W;
+  offscreen.height        = WEBCAM_H;
+  detectionCanvas.width   = window.innerWidth;
+  detectionCanvas.height  = window.innerHeight;
 }
 
 // ─── Mask video setup ─────────────────────────────────────────────────────────
@@ -75,6 +79,7 @@ new p5(function (p) {
 
   p.draw = function () {
     drawWebcamPreview();
+    drawDetectionOverlay();
   };
 
   p.windowResized = function () {
@@ -87,30 +92,40 @@ new p5(function (p) {
 });
 
 // ─── Pose callback ────────────────────────────────────────────────────────────
+const OBSERVER_MESSAGES = {
+  0: "When i'm alone",
+  1: "When I'm with my lover",
+  2: "When i'm with my besties",
+  3: "When i'm with my client",
+};
+
 function onPoses(results) {
   poses = results;
-  const personPresent = poses.length > 0;
+  const count = poses.length;
 
-  webcamContainer.classList.toggle('detected', personPresent);
+  webcamContainer.classList.toggle('detected', count > 0);
 
-  if (!personPresent) {
-    // Person left
-    personWasAbsent = true;
-    setStatus('No person');
-    return;
-  }
-
-  // Person is present
-  if (personWasAbsent) {
-    // Re-appeared after absence → trigger next video (if current one finished)
-    personWasAbsent = false;
+  if (count !== prevObserverCount) {
+    prevObserverCount = count;
     tryAdvanceMask();
   }
 
-  const nose = poses[0].keypoints.find(k => k.name === 'nose');
-  if (nose && nose.confidence > 0.3) {
-    setStatus(`Person detected — mask ${currentMaskIndex + 1}`);
+  updateBottomBar(count);
+}
+
+function updateBottomBar(count) {
+  const leftEl  = document.getElementById('bottom-left');
+  const rightEl = document.getElementById('bottom-right');
+
+  if (count === 0) {
+    leftEl.textContent = '—';
+  } else {
+    leftEl.innerHTML = Array.from({ length: count }, (_, i) =>
+      `<span>Observer ${i + 1}</span>`
+    ).join('');
   }
+
+  rightEl.textContent = OBSERVER_MESSAGES[Math.min(count, 3)] ?? '';
 }
 
 // ─── Mask video control ───────────────────────────────────────────────────────
@@ -183,6 +198,67 @@ function drawWebcamPreview() {
   }
 
   webcamCtx.putImageData(id, 0, 0);
+}
+
+// ─── Detection overlay — bounding boxes + labels ─────────────────────────────
+const FACE_KPS = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear'];
+
+function drawDetectionOverlay() {
+  const W = detectionCanvas.width;
+  const H = detectionCanvas.height;
+  detectionCtx.clearRect(0, 0, W, H);
+  if (!poses.length) return;
+
+  const scaleX = W / WEBCAM_W;
+  const scaleY = H / WEBCAM_H;
+
+  poses.forEach((pose, i) => {
+    const pts = pose.keypoints.filter(k => FACE_KPS.includes(k.name) && k.confidence > 0.25);
+    if (pts.length < 2) return;
+
+    const xs = pts.map(k => k.x * scaleX);
+    const ys = pts.map(k => k.y * scaleY);
+    const x1 = Math.min(...xs);
+    const y1 = Math.min(...ys);
+    const x2 = Math.max(...xs);
+    const y2 = Math.max(...ys);
+
+    // Expand box around face
+    const padX = (x2 - x1) * 0.2;
+    const padY = (y2 - y1) * 0.6;
+    const rx = x1 - padX;
+    const ry = y1 - padY;
+    const rw = (x2 - x1) + padX * 2;
+    const rh = (y2 - y1) + padY * 2;
+
+    // Box — iOS style rounded rect
+    detectionCtx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    detectionCtx.lineWidth = 1;
+    detectionCtx.beginPath();
+    detectionCtx.roundRect(rx, ry, rw, rh, 10);
+    detectionCtx.stroke();
+
+    // Label pill
+    const label = `Observer ${i + 1}`;
+    detectionCtx.font = '500 12px -apple-system, BlinkMacSystemFont, sans-serif';
+    const tw = detectionCtx.measureText(label).width;
+    const lw = tw + 20;
+    const lh = 26;
+    const lx = rx;
+    const ly = ry - lh - 6;
+
+    detectionCtx.fillStyle = 'rgba(30, 30, 30, 0.7)';
+    detectionCtx.beginPath();
+    detectionCtx.roundRect(lx, ly, lw, lh, 8);
+    detectionCtx.fill();
+
+    detectionCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    detectionCtx.lineWidth = 1;
+    detectionCtx.stroke();
+
+    detectionCtx.fillStyle = '#ffffff';
+    detectionCtx.fillText(label, lx + 10, ly + 17);
+  });
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

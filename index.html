@@ -21,8 +21,17 @@
     <video id="mask3" class="mask-video" src="assets/videos/mask_3.mp4" preload="auto" muted playsinline></video>
   </div>
 
-  <!-- Status log — bottom centre -->
+  <!-- Detection overlay — bounding boxes -->
+  <canvas id="detection-overlay"></canvas>
+
+  <!-- Status log — technical messages -->
   <div id="status-log"></div>
+
+  <!-- Bottom bar — observer status + message -->
+  <div id="bottom-bar">
+    <div id="bottom-left"></div>
+    <div id="bottom-right"></div>
+  </div>
 
   <!-- p5.js + ml5.js via CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
