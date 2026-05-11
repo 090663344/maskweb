@@ -71,14 +71,14 @@ new p5(function (p) {
 
     applyCanvasSize();
 
-    capture = p.createCapture({ video: { facingMode: 'user', width: { ideal: WEBCAM_W }, height: { ideal: WEBCAM_H } }, audio: false });
+    capture = p.createCapture({ video: { facingMode: 'user' }, audio: false });
     capture.size(WEBCAM_W, WEBCAM_H);
     capture.hide();
 
     showMask(0);
     setStatus('Loading model…');
 
-    bodyPose = ml5.bodyPose('MoveNet', { flipped: true }, () => {
+    bodyPose = ml5.bodyPose('MoveNet', { flipped: true, minPoseScore: 0.15 }, () => {
       setStatus('Ready — show yourself');
       bodyPose.detectStart(capture, onPoses);
     });
@@ -228,22 +228,23 @@ function lb(x, y, dx, dy, arm) {
 function drawDetectionOverlay() {
   const W   = window.innerWidth;
   const H   = window.innerHeight;
-  const PAD = 24;
-  const ARM_SCREEN = 28;
-  const ARM_FACE   = 20;
+  const PAD        = 24;
+  const MARGIN     = 52;
+  const ARM_SCREEN = 32;
+  const ARM_FACE   = 40;
   detectionCtx.clearRect(0, 0, W, H);
 
-  // ── Screen-corner L-brackets (always visible) ────────────────────────────
+  // ── Screen-corner L-brackets (always visible, outward-pointing) ──────────
   detectionCtx.strokeStyle = 'rgba(255,255,255,0.55)';
   detectionCtx.lineWidth   = 1.5;
   detectionCtx.lineCap     = 'square';
-  lb(PAD,   PAD,    1,  1, ARM_SCREEN);
-  lb(W-PAD, PAD,   -1,  1, ARM_SCREEN);
-  lb(W-PAD, H-PAD, -1, -1, ARM_SCREEN);
-  lb(PAD,   H-PAD,  1, -1, ARM_SCREEN);
+  lb(MARGIN,   MARGIN,    -1, -1, ARM_SCREEN);
+  lb(W-MARGIN, MARGIN,     1, -1, ARM_SCREEN);
+  lb(W-MARGIN, H-MARGIN,   1,  1, ARM_SCREEN);
+  lb(MARGIN,   H-MARGIN,  -1,  1, ARM_SCREEN);
 
   // ── Mask number — top left ────────────────────────────────────────────────
-  const NUM_SIZE  = 88;
+  const NUM_SIZE  = 176;
   const NUM_X     = PAD + 6;
   const NUM_Y     = PAD + 2;
   const maskLabel = String(currentMaskIndex + 1).padStart(2, '0');
@@ -256,13 +257,13 @@ function drawDetectionOverlay() {
 
   // ── Observer list — right of number ──────────────────────────────────────
   if (poses.length > 0) {
-    const OBS_X    = NUM_X + numW + 16;
-    const OBS_Y    = NUM_Y + 8;
-    const PILL_H   = 22;
-    const ROW_GAP  = 7;
-    const PILL_PAD = 8;
-    const LINE_MAX = Math.min(160, W - OBS_X - 55);
-    const ARR      = 5;
+    const OBS_X    = NUM_X + numW + 32;
+    const OBS_Y    = NUM_Y;
+    const PILL_H   = 44;
+    const ROW_GAP  = 14;
+    const PILL_PAD = 16;
+    const LINE_MAX = Math.min(320, W - OBS_X - 110);
+    const ARR      = 10;
 
     detectionCtx.textBaseline = 'middle';
 
@@ -273,7 +274,7 @@ function drawDetectionOverlay() {
       const row_y  = OBS_Y + i * (PILL_H + ROW_GAP) + PILL_H / 2;
       const label  = `Observer ${i + 1}`;
 
-      detectionCtx.font = `200 11px apotek, sans-serif`;
+      detectionCtx.font = `200 22px apotek, sans-serif`;
       const pill_w = detectionCtx.measureText(label).width + PILL_PAD * 2;
 
       // Pill (outline only)
@@ -288,7 +289,7 @@ function drawDetectionOverlay() {
       detectionCtx.fillText(label, OBS_X + PILL_PAD, row_y);
 
       // Confidence line + arrowhead
-      const lx0 = OBS_X + pill_w + 9;
+      const lx0 = OBS_X + pill_w + 18;
       const lx1 = lx0 + Math.round((pct / 100) * LINE_MAX);
       detectionCtx.strokeStyle = 'rgba(255,255,255,0.65)';
       detectionCtx.lineWidth   = 1.5;
@@ -301,8 +302,8 @@ function drawDetectionOverlay() {
 
       // Percentage
       detectionCtx.fillStyle = 'rgba(255,255,255,0.6)';
-      detectionCtx.font      = `200 10px apotek, sans-serif`;
-      detectionCtx.fillText(String(pct).padStart(2, '0') + ' %', lx1 + 7, row_y);
+      detectionCtx.font      = `200 20px apotek, sans-serif`;
+      detectionCtx.fillText(String(pct).padStart(2, '0') + ' %', lx1 + 14, row_y);
     });
   }
 
@@ -310,9 +311,9 @@ function drawDetectionOverlay() {
   if (textLog.length > 0) {
     const LOG_X      = PAD + 6;
     const LOG_BOT    = H - PAD - 6;
-    const LINE_H     = 15;
-    const ENTRY_H    = LINE_H * 2 + 3;
-    const ENTRY_GAP  = 10;
+    const LINE_H     = 30;
+    const ENTRY_H    = LINE_H * 2 + 6;
+    const ENTRY_GAP  = 20;
     const OPACITIES  = [1.0, 0.42, 0.18, 0.08, 0.04];
 
     detectionCtx.textAlign    = 'left';
@@ -325,9 +326,9 @@ function drawDetectionOverlay() {
       const bot  = LOG_BOT - age * (ENTRY_H + ENTRY_GAP);
 
       detectionCtx.fillStyle = `rgba(255,255,255,${op})`;
-      detectionCtx.font      = `200 11px apotek, sans-serif`;
+      detectionCtx.font      = `200 22px apotek, sans-serif`;
       detectionCtx.fillText(`- ${e.desc}`, LOG_X + 10, bot);
-      detectionCtx.fillText(`${e.num}  ${e.heading}`, LOG_X, bot - LINE_H - 2);
+      detectionCtx.fillText(`${e.num}  ${e.heading}`, LOG_X, bot - LINE_H - 4);
     }
   }
 
@@ -337,9 +338,9 @@ function drawDetectionOverlay() {
   const srcW    = (capture && capture.elt.videoWidth)  || WEBCAM_W;
   const srcH    = (capture && capture.elt.videoHeight) || WEBCAM_H;
   const needSwap = (srcW > srcH) && (W < H);
-  const scaleX  = needSwap ? W / srcH : W / WEBCAM_W;
-  const scaleY  = needSwap ? H / srcW : H / WEBCAM_H;
-  const toSX    = needSwap ? k => k.y * scaleX          : k => k.x * scaleX;
+  const scaleX  = needSwap ? W / srcH : W / srcW;
+  const scaleY  = needSwap ? H / srcW : H / srcH;
+  const toSX    = needSwap ? k => (srcH - k.y) * scaleX : k => k.x * scaleX;
   const toSY    = needSwap ? k => (srcW - k.x) * scaleY : k => k.y * scaleY;
 
   detectionCtx.strokeStyle = 'rgba(255,255,255,0.7)';
