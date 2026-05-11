@@ -71,7 +71,7 @@ new p5(function (p) {
 
     applyCanvasSize();
 
-    capture = p.createCapture({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    capture = p.createCapture({ video: { facingMode: 'user' }, audio: false });
     capture.size(WEBCAM_W, WEBCAM_H);
     capture.hide();
 
@@ -337,7 +337,7 @@ function drawDetectionOverlay() {
 
   const srcW    = (capture && capture.elt.videoWidth)  || WEBCAM_W;
   const srcH    = (capture && capture.elt.videoHeight) || WEBCAM_H;
-  const needSwap = (srcW > srcH) && (W < H);
+  const needSwap = W < H; // portrait screen: camera content is always physically rotated
   const scaleX  = needSwap ? W / srcH : W / srcW;
   const scaleY  = needSwap ? H / srcW : H / srcH;
   const toSX    = needSwap ? k => k.y * scaleX           : k => k.x * scaleX;
