@@ -214,7 +214,9 @@ function drawWebcamPreview() {
 }
 
 // ─── Detection overlay — HUD design ──────────────────────────────────────────
-const FACE_KPS = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear'];
+const FACE_KPS = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
+                  'left_shoulder', 'right_shoulder']; // for confidence display
+const BOX_KPS  = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear']; // for bounding box
 const BRACKET_W = 1.5;
 
 function lb(x, y, dx, dy, arm) {
@@ -337,18 +339,28 @@ function drawDetectionOverlay() {
 
   const srcW    = (capture && capture.elt.videoWidth)  || WEBCAM_W;
   const srcH    = (capture && capture.elt.videoHeight) || WEBCAM_H;
-  const needSwap = W < H; // portrait screen: camera content is always physically rotated
-  const scaleX  = needSwap ? W / srcH : W / srcW;
-  const scaleY  = needSwap ? H / srcW : H / srcH;
-  const toSX    = needSwap ? k => k.y * scaleX           : k => k.x * scaleX;
-  const toSY    = needSwap ? k => (srcW - k.x) * scaleY : k => k.y * scaleY;
+  const needSwap = W < H;
+
+  // Replicate drawWebcamPreview's cover crop to get the same visible region
+  const _sa = srcW / srcH, _da = WEBCAM_W / WEBCAM_H;
+  let csx, csy, csw, csh;
+  if (_sa > _da) { csh = srcH; csw = srcH * _da; csx = (srcW - csw) / 2; csy = 0; }
+  else           { csw = srcW; csh = srcW / _da;  csx = 0; csy = (srcH - csh) / 2; }
+
+  // Map keypoints to screen coords, accounting for crop offset + mirror (flipped:true)
+  const toSX = needSwap
+    ? k => (k.y - csy) / csh * W                  // video-y → screen-x (portrait axis swap)
+    : k => (k.x - csx) / csw * W;                 // video-x → screen-x
+  const toSY = needSwap
+    ? k => ((srcW - k.x) - csx) / csw * H         // video-x (mirrored) → screen-y
+    : k => (k.y - csy) / csh * H;                 // video-y → screen-y
 
   detectionCtx.strokeStyle = 'rgba(255,255,255,0.7)';
   detectionCtx.lineWidth   = BRACKET_W;
   detectionCtx.lineCap     = 'square';
 
   poses.forEach(pose => {
-    const fpts = pose.keypoints.filter(k => FACE_KPS.includes(k.name) && k.confidence > 0.05);
+    const fpts = pose.keypoints.filter(k => BOX_KPS.includes(k.name) && k.confidence > 0.05);
     const MIN_BOX = Math.min(W, H) * 0.22;
     let bx, by, bw, bh;
 
