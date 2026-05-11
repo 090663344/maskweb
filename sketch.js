@@ -70,7 +70,7 @@ new p5(function (p) {
 
     applyCanvasSize();
 
-    capture = p.createCapture({ video: { facingMode: 'user', width: { ideal: WEBCAM_W }, height: { ideal: WEBCAM_H } } });
+    capture = p.createCapture({ video: { facingMode: 'user', width: { ideal: WEBCAM_W }, height: { ideal: WEBCAM_H } }, audio: false });
     capture.size(WEBCAM_W, WEBCAM_H);
     capture.hide();
 
@@ -219,19 +219,9 @@ function drawDetectionOverlay() {
 
   if (!poses.length) return;
 
-  // Map keypoints through same cover-crop as drawWebcamPreview
-  const srcW = (capture && capture.elt.videoWidth)  || WEBCAM_W;
-  const srcH = (capture && capture.elt.videoHeight) || WEBCAM_H;
-  const srcAspect = srcW / srcH;
-  const dstAspect = W / H;
-  let cropSx = 0, cropSy = 0, cropSw = srcW, cropSh = srcH;
-  if (srcAspect > dstAspect) {
-    cropSw = srcH * dstAspect; cropSx = (srcW - cropSw) / 2;
-  } else {
-    cropSh = srcW / dstAspect; cropSy = (srcH - cropSh) / 2;
-  }
-  const scaleX = W / cropSw;
-  const scaleY = H / cropSh;
+  // ml5 returns keypoints in CSS pixel space (WEBCAM_W × WEBCAM_H)
+  const scaleX = W / WEBCAM_W;
+  const scaleY = H / WEBCAM_H;
 
   // ── Observer list — top left ──────────────────────────────────────────────
   const PILL_H    = 24;
@@ -304,8 +294,8 @@ function drawDetectionOverlay() {
 
     // ── L-bracket corners around face box ──────────────────────────────────
     if (pts.length >= 2) {
-      const xs = pts.map(k => (k.x - cropSx) * scaleX);
-      const ys = pts.map(k => (k.y - cropSy) * scaleY);
+      const xs = pts.map(k => k.x * scaleX);
+      const ys = pts.map(k => k.y * scaleY);
       const x1 = Math.min(...xs);
       const y1 = Math.min(...ys);
       const x2 = Math.max(...xs);
