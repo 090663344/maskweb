@@ -215,9 +215,8 @@ function drawWebcamPreview() {
 
 // ─── Detection overlay — HUD design ──────────────────────────────────────────
 const FACE_KPS = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear',
-                  'left_shoulder', 'right_shoulder']; // for confidence display
-const BOX_KPS  = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear']; // for bounding box
-const BRACKET_W = 1.5;
+                  'left_shoulder', 'right_shoulder'];
+const BOX_KPS  = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear'];
 
 function lb(x, y, dx, dy, arm) {
   detectionCtx.beginPath();
@@ -228,139 +227,101 @@ function lb(x, y, dx, dy, arm) {
 }
 
 function drawDetectionOverlay() {
-  const W   = window.innerWidth;
-  const H   = window.innerHeight;
-  const PAD        = 24;
-  const MARGIN     = 52;
-  const ARM_SCREEN = 32;
-  const ARM_FACE   = 40;
+  const W      = window.innerWidth;
+  const H      = window.innerHeight;
+  const PAD    = 20;
+  const MARGIN = 48;
+  const ARM    = 24;
+  const FS     = 12;
+  const LH     = 17;
   detectionCtx.clearRect(0, 0, W, H);
 
-  // ── Screen-corner L-brackets (always visible, outward-pointing) ──────────
-  detectionCtx.strokeStyle = 'rgba(255,255,255,0.55)';
-  detectionCtx.lineWidth   = 1.5;
+  // ── Screen corner brackets (outward-pointing, always visible) ─────────────
+  detectionCtx.strokeStyle = 'rgba(255,255,255,0.45)';
+  detectionCtx.lineWidth   = 1;
   detectionCtx.lineCap     = 'square';
-  lb(MARGIN,   MARGIN,    -1, -1, ARM_SCREEN);
-  lb(W-MARGIN, MARGIN,     1, -1, ARM_SCREEN);
-  lb(W-MARGIN, H-MARGIN,   1,  1, ARM_SCREEN);
-  lb(MARGIN,   H-MARGIN,  -1,  1, ARM_SCREEN);
+  lb(MARGIN,   MARGIN,    -1, -1, ARM);
+  lb(W-MARGIN, MARGIN,     1, -1, ARM);
+  lb(W-MARGIN, H-MARGIN,   1,  1, ARM);
+  lb(MARGIN,   H-MARGIN,  -1,  1, ARM);
 
-  // ── Mask number — top left ────────────────────────────────────────────────
-  const NUM_SIZE  = 140;
-  const NUM_X     = PAD + 6;
-  const NUM_Y     = PAD + 2;
+  // ── Top-left status panel ──────────────────────────────────────────────────
+  const TX = PAD + 2;
+  let   ty = PAD + 2;
   const maskLabel = String(currentMaskIndex + 1).padStart(2, '0');
-  detectionCtx.font         = `400 ${NUM_SIZE}px 'Chakra Petch', sans-serif`;
-  detectionCtx.fillStyle    = 'rgba(255,255,255,0.9)';
+
+  detectionCtx.font         = `400 ${FS}px 'Chakra Petch', sans-serif`;
   detectionCtx.textAlign    = 'left';
   detectionCtx.textBaseline = 'top';
-  detectionCtx.fillText(maskLabel, NUM_X, NUM_Y);
-  const numW = detectionCtx.measureText(maskLabel).width;
 
-  // ── Observer list — right of number ──────────────────────────────────────
-  if (poses.length > 0) {
-    const OBS_X    = NUM_X + numW + 32;
-    const OBS_Y    = NUM_Y;
-    const PILL_H   = 35;
-    const ROW_GAP  = 11;
-    const PILL_PAD = 13;
-    const LINE_MAX = Math.min(256, W - OBS_X - 90);
-    const ARR      = 8;
+  const COL2 = TX + 120; // value column x
 
-    detectionCtx.textBaseline = 'middle';
-
-    poses.forEach((pose, i) => {
-      const fpts   = pose.keypoints.filter(k => FACE_KPS.includes(k.name) && k.confidence > 0.05);
-      const conf   = fpts.length ? fpts.reduce((s, k) => s + k.confidence, 0) / fpts.length : 0;
-      const pct    = Math.round(conf * 100);
-      const row_y  = OBS_Y + i * (PILL_H + ROW_GAP) + PILL_H / 2;
-      const label  = `Observer ${i + 1}`;
-
-      detectionCtx.font = `400 18px 'Chakra Petch', sans-serif`;
-      const pill_w = detectionCtx.measureText(label).width + PILL_PAD * 2;
-
-      // Pill (outline only)
-      detectionCtx.strokeStyle = 'rgba(255,255,255,0.65)';
-      detectionCtx.lineWidth   = 1;
-      detectionCtx.beginPath();
-      detectionCtx.roundRect(OBS_X, row_y - PILL_H / 2, pill_w, PILL_H, 4);
-      detectionCtx.stroke();
-
-      detectionCtx.fillStyle = 'rgba(255,255,255,0.9)';
-      detectionCtx.textAlign = 'left';
-      detectionCtx.fillText(label, OBS_X + PILL_PAD, row_y);
-
-      // Confidence line + arrowhead
-      const lx0 = OBS_X + pill_w + 14;
-      const lx1 = lx0 + Math.round((pct / 100) * LINE_MAX);
-      detectionCtx.strokeStyle = 'rgba(255,255,255,0.65)';
-      detectionCtx.lineWidth   = 1.5;
-      detectionCtx.beginPath(); detectionCtx.moveTo(lx0, row_y); detectionCtx.lineTo(lx1, row_y); detectionCtx.stroke();
-      detectionCtx.beginPath();
-      detectionCtx.moveTo(lx1 - ARR, row_y - ARR / 2);
-      detectionCtx.lineTo(lx1, row_y);
-      detectionCtx.lineTo(lx1 - ARR, row_y + ARR / 2);
-      detectionCtx.stroke();
-
-      // Percentage
-      detectionCtx.fillStyle = 'rgba(255,255,255,0.6)';
-      detectionCtx.font      = `400 16px 'Chakra Petch', sans-serif`;
-      detectionCtx.fillText(String(pct).padStart(2, '0') + ' %', lx1 + 11, row_y);
-    });
+  function statusRow(label, value, labelOp, valueOp) {
+    detectionCtx.fillStyle = `rgba(255,255,255,${labelOp})`;
+    detectionCtx.fillText(label, TX, ty);
+    detectionCtx.fillStyle = `rgba(255,255,255,${valueOp})`;
+    detectionCtx.fillText(value, COL2, ty);
+    ty += LH;
   }
 
-  // ── Bottom-left text log ──────────────────────────────────────────────────
+  statusRow('mask',      maskLabel,          0.45, 0.9);
+  statusRow('video',     maskIsPlaying ? 'playing' : 'idle', 0.45, maskIsPlaying ? 0.9 : 0.4);
+  statusRow('observers', String(poses.length), 0.45, 0.9);
+
+  poses.forEach((pose, i) => {
+    const fpts = pose.keypoints.filter(k => FACE_KPS.includes(k.name) && k.confidence > 0.05);
+    const conf = fpts.length ? fpts.reduce((s, k) => s + k.confidence, 0) / fpts.length : 0;
+    const pct  = Math.round(conf * 100);
+    statusRow(`  observer_${String(i + 1).padStart(2, '0')}`, `${pct} %`, 0.4, 0.85);
+  });
+
+  // ── Bottom-left text log ───────────────────────────────────────────────────
   if (textLog.length > 0) {
-    const LOG_X      = PAD + 6;
-    const LOG_BOT    = H - PAD - 6;
-    const LINE_H     = 24;
-    const ENTRY_H    = LINE_H * 2 + 5;
-    const ENTRY_GAP  = 16;
-    const OPACITIES  = [1.0, 0.42, 0.18, 0.08, 0.04];
+    const LX        = PAD + 2;
+    const LOG_BOT   = H - PAD - 4;
+    const ELH       = 15;
+    const ENTRY_GAP = 10;
+    const OPACITIES = [1.0, 0.42, 0.18, 0.08, 0.04];
 
     detectionCtx.textAlign    = 'left';
     detectionCtx.textBaseline = 'bottom';
 
-    const n = textLog.length;
-    for (let age = 0; age < n; age++) {
-      const e    = textLog[n - 1 - age];
-      const op   = OPACITIES[age] ?? 0.03;
-      const bot  = LOG_BOT - age * (ENTRY_H + ENTRY_GAP);
+    for (let age = 0; age < textLog.length; age++) {
+      const e   = textLog[textLog.length - 1 - age];
+      const op  = OPACITIES[age] ?? 0.03;
+      const bot = LOG_BOT - age * (ELH * 2 + 3 + ENTRY_GAP);
 
+      detectionCtx.font      = `400 ${FS}px 'Chakra Petch', sans-serif`;
       detectionCtx.fillStyle = `rgba(255,255,255,${op})`;
-      detectionCtx.font      = `400 18px 'Chakra Petch', sans-serif`;
-      detectionCtx.fillText(`- ${e.desc}`, LOG_X + 10, bot);
-      detectionCtx.fillText(`${e.num}  ${e.heading}`, LOG_X, bot - LINE_H - 4);
+      detectionCtx.fillText(`  ${e.desc}`, LX, bot);
+      detectionCtx.fillText(`[${e.num}] ${e.heading}`, LX, bot - ELH - 2);
     }
   }
 
-  // ── Face detection L-brackets ─────────────────────────────────────────────
+  // ── Face detection boxes ───────────────────────────────────────────────────
   if (!poses.length) return;
 
   const srcW    = (capture && capture.elt.videoWidth)  || WEBCAM_W;
   const srcH    = (capture && capture.elt.videoHeight) || WEBCAM_H;
   const needSwap = W < H;
 
-  // Replicate drawWebcamPreview's cover crop to get the same visible region
   const _sa = srcW / srcH, _da = WEBCAM_W / WEBCAM_H;
   let csx, csy, csw, csh;
   if (_sa > _da) { csh = srcH; csw = srcH * _da; csx = (srcW - csw) / 2; csy = 0; }
   else           { csw = srcW; csh = srcW / _da;  csx = 0; csy = (srcH - csh) / 2; }
 
-  // Map keypoints to screen coords, accounting for crop offset + mirror (flipped:true)
   const toSX = needSwap
-    ? k => (k.y - csy) / csh * W                  // video-y → screen-x (portrait axis swap)
-    : k => (k.x - csx) / csw * W;                 // video-x → screen-x
+    ? k => (k.y - csy) / csh * W
+    : k => (k.x - csx) / csw * W;
   const toSY = needSwap
-    ? k => ((srcW - k.x) - csx) / csw * H         // video-x (mirrored) → screen-y
-    : k => (k.y - csy) / csh * H;                 // video-y → screen-y
+    ? k => ((srcW - k.x) - csx) / csw * H
+    : k => (k.y - csy) / csh * H;
 
-  detectionCtx.strokeStyle = 'rgba(255,255,255,0.7)';
-  detectionCtx.lineWidth   = BRACKET_W;
-  detectionCtx.lineCap     = 'square';
+  detectionCtx.strokeStyle = 'rgba(255,255,255,0.75)';
+  detectionCtx.lineWidth   = 1.5;
 
-  poses.forEach(pose => {
-    const fpts = pose.keypoints.filter(k => BOX_KPS.includes(k.name) && k.confidence > 0.05);
+  poses.forEach((pose, i) => {
+    const fpts    = pose.keypoints.filter(k => BOX_KPS.includes(k.name) && k.confidence > 0.05);
     const MIN_BOX = Math.min(W, H) * 0.22;
     let bx, by, bw, bh;
 
@@ -390,10 +351,17 @@ function drawDetectionOverlay() {
       by = (ls && rs) ? midY - bh * 1.5 : midY - bh * 0.4;
     }
 
-    lb(bx,      by,      1,  1, ARM_FACE);
-    lb(bx + bw, by,     -1,  1, ARM_FACE);
-    lb(bx + bw, by + bh, -1, -1, ARM_FACE);
-    lb(bx,      by + bh,  1, -1, ARM_FACE);
+    // Rounded detection box
+    detectionCtx.beginPath();
+    detectionCtx.roundRect(bx, by, bw, bh, 10);
+    detectionCtx.stroke();
+
+    // Observer label below box
+    detectionCtx.font         = `400 ${FS}px 'Chakra Petch', sans-serif`;
+    detectionCtx.fillStyle    = 'rgba(255,255,255,0.6)';
+    detectionCtx.textAlign    = 'left';
+    detectionCtx.textBaseline = 'top';
+    detectionCtx.fillText(`observer_${String(i + 1).padStart(2, '0')}`, bx, by + bh + 4);
   });
 }
 
