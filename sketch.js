@@ -32,12 +32,18 @@ const offscreen = document.createElement('canvas');
 const offCtx    = offscreen.getContext('2d', { willReadFrequently: true });
 
 function applyCanvasSize() {
+  const dpr = window.devicePixelRatio || 1;
+
   webcamCanvas.width      = WEBCAM_W;
   webcamCanvas.height     = WEBCAM_H;
   offscreen.width         = WEBCAM_W;
   offscreen.height        = WEBCAM_H;
-  detectionCanvas.width   = window.innerWidth;
-  detectionCanvas.height  = window.innerHeight;
+
+  detectionCanvas.width         = Math.round(window.innerWidth  * dpr);
+  detectionCanvas.height        = Math.round(window.innerHeight * dpr);
+  detectionCanvas.style.width   = window.innerWidth  + 'px';
+  detectionCanvas.style.height  = window.innerHeight + 'px';
+  detectionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 // ─── Mask video setup ─────────────────────────────────────────────────────────
@@ -199,8 +205,8 @@ const BRACKET  = 18;  // L-bracket arm length
 const BRACKET_W = 1.5;
 
 function drawDetectionOverlay() {
-  const W = detectionCanvas.width;
-  const H = detectionCanvas.height;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
   detectionCtx.clearRect(0, 0, W, H);
 
   // ── Large mask number — top right ────────────────────────────────────────
